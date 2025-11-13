@@ -1,6 +1,6 @@
 import { Module, Global } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Redis } from 'ioredis';
+import Redis, { RedisOptions } from 'ioredis';
 import { RedisService } from './redis.service';
 
 @Global()
@@ -8,24 +8,29 @@ import { RedisService } from './redis.service';
   providers: [
     {
       provide: 'REDIS_CLIENT',
-      useFactory: (configService: ConfigService) => {
-        const redisConfig: any = {
-          host: configService.get<string>('redis.host'),
-          port: configService.get<number>('redis.port'),
-        };
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisConfig: RedisOptions = {
+          host: config.get<string>('redis.host'),
+          port: config.get<number>('redis.port'),
+          db: config.get<number>('redis.db') ?? 0,
+          password: config.get<string>('redis.password') || undefined,
 
-        const password = configService.get<string>('redis.password');
-        if (password) {
-          redisConfig.password = password;
-        }
+          retryStrategy: (times: number) => {
+            const delay = Math.min(times * 50, 2000);
+            return delay;
+          },
+
+          connectTimeout: 5000,
+        };
 
         return new Redis(redisConfig);
       },
-      inject: [ConfigService],
     },
+
     RedisService,
   ],
-  exports: [RedisService, 'REDIS_CLIENT'],
+
+  exports: ['REDIS_CLIENT', RedisService],
 })
 export class RedisModule {}
-
