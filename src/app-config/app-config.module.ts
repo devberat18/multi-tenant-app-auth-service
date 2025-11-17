@@ -5,15 +5,15 @@ import { envValidationSchema } from './env.validation';
 
 @Global()
 @Module({
-    imports: [
-        ConfigModule.forRoot({
-            isGlobal: true,
-            load: [configuration],
-            validationSchema: envValidationSchema,
-            envFilePath: '.env',
-            expandVariables: true,
-        }),
-    ],
-    exports: [ConfigModule],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+      validationSchema: envValidationSchema,
+      envFilePath: '.env',
+      expandVariables: true,
+    }),
+  ],
+  exports: [ConfigModule],
 })
-export class AppConfigModule { }
+export class AppConfigModule {}

@@ -56,4 +56,3 @@ export class RedisService {
     return this.redisClient;
   }
 }
-
