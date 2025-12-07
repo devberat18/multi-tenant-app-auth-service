@@ -55,4 +55,8 @@ export class RedisService {
   getClient(): Redis {
     return this.redisClient;
   }
+
+  scanStream(options: any) {
+    return this.redisClient.scanStream(options);
+  }
 }

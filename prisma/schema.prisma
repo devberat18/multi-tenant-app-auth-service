@@ -26,12 +26,18 @@ model User {
 }
 
 model Token {
-  id           Int      @id @default(autoincrement())
-  userId       String   @map("user_id") @db.Uuid
-  refreshToken String   @map("refresh_token")
-  expiresAt    DateTime @map("expires_at")
-  ip           String?
-  userDevice   String?  @map("user_device")
+  id     Int    @id @default(autoincrement())
+  userId String @map("user_id") @db.Uuid
+
+  refreshToken String @map("refresh_token")
+
+  ip         String?
+  userDevice String? @map("user_device")
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastUsedAt DateTime  @map("last_used_at")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -39,12 +45,14 @@ model Token {
 }
 
 model PasswordReset {
-  id        BigInt   @id @default(autoincrement()) @db.BigInt
-  userId    String   @map("user_id") @db.Uuid
-  token     BigInt   @db.BigInt
-  tokenUsed Boolean  @default(false) @map("token_used")
-  createdAt DateTime @default(now()) @map("created_at")
-  expiresAt DateTime @map("expires_at")
+  id         BigInt   @id @default(autoincrement()) @db.BigInt
+  userId     String   @map("user_id") @db.Uuid
+  ip         String?
+  userDevice String?  @map("user_device")
+  token      String   @unique
+  tokenUsed  Boolean  @default(false) @map("token_used")
+  createdAt  DateTime @default(now()) @map("created_at")
+  expiresAt  DateTime @map("expires_at")
 
   user User @relation(fields: [userId], references: [id])
 
