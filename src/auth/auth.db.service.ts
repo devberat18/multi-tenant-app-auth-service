@@ -138,7 +138,6 @@ export class AuthDbService {
     token: string;
   }) {
     const now = new Date();
-    const twoMinutesFromNow = new Date(now.getTime() + 2 * 60 * 1000);
 
     return this.prisma.passwordReset.findFirst({
       where: {
@@ -147,7 +146,6 @@ export class AuthDbService {
         token: params.token,
         expiresAt: {
           gte: now,
-          lte: twoMinutesFromNow,
         },
       },
     });

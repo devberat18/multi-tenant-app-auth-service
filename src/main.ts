@@ -28,11 +28,10 @@ async function bootstrap() {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        name: 'JWT',
-        description: 'Enter JWT token',
+        name: 'Authorization',
         in: 'header',
       },
-      'JWT-auth',
+      'access-token',
     )
     .addTag('auth', 'Authentication endpoints')
     .addTag('users', 'User management endpoints')
