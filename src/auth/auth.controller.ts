@@ -1,11 +1,21 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   AuthChangePasswordDto,
   AuthCreateOtpDto,
+  AuthListSessionsQueryDto,
   AuthLoginDto,
   AuthRefreshTokenDto,
   AuthRegisterDto,
   AuthResetPasswordDto,
+  AuthSessionRevokeDto,
   AuthVerifyOtpCodeDto,
 } from './dto';
 import { AuthService } from './auth.service';
@@ -68,7 +78,9 @@ export class AuthController {
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @Post('/logout-all')
   async logoutAllSession(@Req() req: any) {
-    return this.authService.logoutAllSessions(req.user.userId);
+    const userId = req.user.sub;
+
+    return this.authService.logoutAllSessions(userId);
   }
 
   @ApiOperation({ summary: 'Refresh access token (rotate refresh token)' })
@@ -153,12 +165,29 @@ export class AuthController {
   })
   @Post('change-password')
   async changePassword(@Body() body: AuthChangePasswordDto, @Req() req: any) {
+    const userId = req.user.sub;
+
     return this.authService.changePassword(
-      req.user.userId,
+      userId,
       body.oldPassword,
       body.password,
       body.rePassword,
     );
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('sessions')
+  async listMySessions(@Req() req: any, @Query() q: AuthListSessionsQueryDto) {
+    const userId = req.user.sub;
+    return this.authService.listMySessions(userId, q);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('session-revoke')
+  async sessionRevoke(@Body() body: AuthSessionRevokeDto, @Req() req: any) {
+    const userId = req.user.sub;
+    return this.authService.revokeSession(userId, body.sessionId);
+  }
+
   // TO DO :  Me, Session list + session revoke, Account delete/deactivate, Admin user list, ban/unban, role update
 }

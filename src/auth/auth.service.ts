@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from 'src/user/user.service';
-import { TokenService } from 'src/token/token.service';
+import { ListSessionsQuery, TokenService } from 'src/token/token.service';
 import { UserDbService } from 'src/user/user.db.service';
 import { OtpService } from 'src/otp/otp.service';
 import { PasswordService } from 'src/user/password.service';
@@ -37,6 +37,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       sid: sessionId,
+      userStatus: user.status,
     });
     return { accessToken, refreshToken };
   }
@@ -68,6 +69,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       sid: newSessionId,
+      userStatus: user.status,
     });
 
     return { accessToken, refreshToken: newRefreshToken };
@@ -207,5 +209,13 @@ export class AuthService {
       password,
       rePassword,
     );
+  }
+
+  async listMySessions(userId: string, q: ListSessionsQuery) {
+    return await this.tokensService.listMySessions(userId, q);
+  }
+
+  async revokeSession(userId: string, sessionId: number) {
+    return await this.tokensService.revokeSession(userId, sessionId);
   }
 }

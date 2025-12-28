@@ -33,6 +33,10 @@ export class UserService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.status === 'BANNED' || user.status === 'DEACTIVATED') {
+      throw new UnauthorizedException(`Account is ${user.status}`);
+    }
+
     await this.usersDbService.updateLastLogin(user.id);
 
     return user;

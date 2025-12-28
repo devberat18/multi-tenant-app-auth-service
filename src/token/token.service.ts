@@ -1,12 +1,41 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { RedisService } from 'src/redis/redis.service';
 import { TokenDbService } from './token.db.service';
+import { SessionStatus } from 'src/auth/dto';
 
+export interface ListSessionsQuery {
+  status?: SessionStatus;
+  cursorId?: number | string;
+  take?: number | string;
+  from?: string;
+  to?: string;
+}
+
+type RevokeSessionResult =
+  | { success: true; status: 'revoked' }
+  | { success: true; status: 'already_revoked' }
+  | { success: true; status: 'already_expired' };
+
+type logoutSessionsResult = { success: true };
+
+type RefreshSessionResult = {
+  userId: string;
+  newRefreshToken: string;
+  newSessionId: number;
+};
+type IssueSessionResult = { refreshToken: string; sessionId: number };
+
+type ParseRefreshTokenResult = {
+  sessionId: number;
+  raw: string;
+};
 @Injectable()
 export class TokenService {
   constructor(
@@ -14,10 +43,7 @@ export class TokenService {
     private tokenDbService: TokenDbService,
   ) {}
 
-  private parseRefreshToken(refreshToken: string): {
-    sessionId: number;
-    raw: string;
-  } {
+  private parseRefreshToken(refreshToken: string): ParseRefreshTokenResult {
     const [sid, raw] = refreshToken.split('.');
     const sessionId = Number(sid);
     if (!sid || !raw || !Number.isInteger(sessionId) || sessionId <= 0) {
@@ -34,7 +60,7 @@ export class TokenService {
     userId: string,
     ip: string,
     userAgent: string,
-  ): Promise<{ refreshToken: string; sessionId: number }> {
+  ): Promise<IssueSessionResult> {
     const token = crypto.randomBytes(40).toString('hex');
     const ttl = 7 * 24 * 60 * 60;
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
@@ -67,11 +93,7 @@ export class TokenService {
     refreshToken: string,
     ip: string,
     userAgent: string,
-  ): Promise<{
-    userId: string;
-    newRefreshToken: string;
-    newSessionId: number;
-  }> {
+  ): Promise<RefreshSessionResult> {
     const { sessionId, raw } = this.parseRefreshToken(refreshToken);
     const incomingHash = this.hashRefreshToken(raw);
     const session = await this.tokenDbService.findOneById(sessionId);
@@ -118,7 +140,9 @@ export class TokenService {
     };
   }
 
-  async logutCurrentSession(refreshToken: string): Promise<{ success: true }> {
+  async logutCurrentSession(
+    refreshToken: string,
+  ): Promise<logoutSessionsResult> {
     const { sessionId, raw } = this.parseRefreshToken(refreshToken);
     const session = await this.tokenDbService.findOneById(sessionId);
 
@@ -139,7 +163,7 @@ export class TokenService {
     return { success: true };
   }
 
-  async logoutAllSessions(userId: string): Promise<{ success: true }> {
+  async logoutAllSessions(userId: string): Promise<logoutSessionsResult> {
     const activeSessionIds =
       await this.tokenDbService.findActiveSessionIdsByUser(userId);
 
@@ -153,5 +177,85 @@ export class TokenService {
       ),
     );
     return { success: true };
+  }
+
+  async listMySessions(userId: string, q: ListSessionsQuery) {
+    const status = (q.status ?? 'active') as SessionStatus;
+
+    const take = q.take === undefined ? 20 : Number(q.take);
+    if (Number.isNaN(take) || take < 1) {
+      throw new BadRequestException('take must be a positive number');
+    }
+
+    const cursorId = q.cursorId === undefined ? undefined : Number(q.cursorId);
+    if (q.cursorId !== undefined && (Number.isNaN(cursorId) || cursorId < 1)) {
+      throw new BadRequestException('cursorId must be a positive number');
+    }
+
+    const from = q.from ? new Date(q.from) : undefined;
+    const to = q.to ? new Date(q.to) : undefined;
+
+    if (from && Number.isNaN(from.getTime())) {
+      throw new BadRequestException('from must be a valid ISO date');
+    }
+    if (to && Number.isNaN(to.getTime())) {
+      throw new BadRequestException('to must be a valid ISO date');
+    }
+    if (from && to && from > to) {
+      throw new BadRequestException('from cannot be after to');
+    }
+
+    const result = await this.tokenDbService.listUserSessionsCursor({
+      userId,
+      status,
+      take,
+      cursorId,
+      from,
+      to,
+    });
+
+    return {
+      items: result.data,
+      pageInfo: {
+        take: result.take,
+        hasNextPage: result.hasNextPage,
+        nextCursorId: result.nextCursorId,
+      },
+      filters: {
+        status,
+        from: q.from ?? null,
+        to: q.to ?? null,
+      },
+    };
+  }
+
+  async revokeSession(
+    userId: string,
+    sessionId: number,
+  ): Promise<RevokeSessionResult> {
+    const now = new Date();
+    const session = await this.tokenDbService.findOneById(sessionId);
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.userId !== userId) {
+      throw new ForbiddenException('Cannot revoke session');
+    }
+
+    if (session.revokedAt) {
+      return { success: true, status: 'already_revoked' };
+    }
+
+    if (session.expiresAt <= now) {
+      return { success: true, status: 'already_expired' };
+    }
+
+    await this.tokenDbService.revokeById(sessionId);
+    await this.redisService.set(`session:revoked:${sessionId}`, '1', 900);
+    await this.redisService.del(`refresh_token:${sessionId}`);
+
+    return { success: true, status: 'revoked' };
   }
 }

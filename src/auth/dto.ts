@@ -1,14 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
-  IsIn,
   IsNotEmpty,
   IsString,
   Matches,
   MaxLength,
   MinLength,
   ValidateIf,
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  Max,
+  Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class AuthLoginDto {
   @ApiPropertyOptional({
@@ -199,4 +205,41 @@ export class AuthChangePasswordDto {
   @IsString()
   @IsNotEmpty()
   rePassword: string;
+}
+
+export type SessionStatus = 'active' | 'revoked' | 'expired' | 'all';
+
+export class AuthListSessionsQueryDto {
+  @IsOptional()
+  @IsIn(['active', 'revoked', 'expired', 'all'])
+  status?: SessionStatus;
+
+  // Cursor: son görülen token kaydının id'si (Int)
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  @IsInt()
+  @Min(1)
+  cursorId?: number;
+
+  // Kaç kayıt dönsün (hard cap backend’de)
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  take?: number;
+
+  // Tarih aralığı (ISO 8601) - ör: 2025-12-01 veya 2025-12-01T10:00:00.000Z
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+}
+
+export class AuthSessionRevokeDto {
+  @IsNotEmpty()
+  sessionId: number;
 }
